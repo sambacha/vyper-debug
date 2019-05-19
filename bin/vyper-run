@@ -47,9 +47,9 @@ def cast_types(args, abi_signature):
     newargs = args.copy()
 
     def recursive_map(it):
-        print(type(it))
+        #print(type(it))
         if type(it) is float or type(it) is int or type(it) is str:
-            return Decimal(it)
+            return Decimal(str(it))
         else:
             return list(map(lambda x: recursive_map(x), it))
 

@@ -8,7 +8,6 @@
 [![Python versions](https://img.shields.io/pypi/pyversions/vyper-debug.svg)](https://pypi.python.org/pypi/vyper-debug)
 [![Docs build](https://readthedocs.org/projects/vyper-debug/badge/?version=latest)](http://vyper-debug.readthedocs.io/en/latest/?badge=latest)
 
-
 Easy to use Vyper debugger | vdb
 
 Read more in the [documentation on ReadTheDocs](https://vyper-debug.readthedocs.io/). [View the change log](https://vyper-debug.readthedocs.io/en/latest/releases.html).

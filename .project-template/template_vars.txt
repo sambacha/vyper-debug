@@ -1,6 +1,0 @@
-vdb
-vyper-debug
-vyper-debug
-vyper-debug
-vyper-debug
-Easy to use Vyper debugger | vdb

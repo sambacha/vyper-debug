@@ -10,15 +10,13 @@ def test():
     a = 2
     """
 
-    stdin = io.StringIO(
-        "a\n"
-    )
+    stdin = io.StringIO("a\n")
     stdout = io.StringIO()
 
     c = get_contract(code, stdin=stdin, stdout=stdout)
     c.functions.test().transact({"gas": 22000})
 
-    assert get_last_out(stdout) == '33343'
+    assert get_last_out(stdout) == "33343"
 
 
 def test_print_int128(get_contract, get_last_out):
@@ -30,15 +28,13 @@ def test():
     a = 2
     """
 
-    stdin = io.StringIO(
-        "a\n"
-    )
+    stdin = io.StringIO("a\n")
     stdout = io.StringIO()
 
     c = get_contract(code, stdin=stdin, stdout=stdout)
     c.functions.test().transact({"gas": 22000})
 
-    assert get_last_out(stdout) == '-123'
+    assert get_last_out(stdout) == "-123"
 
 
 def test_print_string_from_storage(get_contract, get_last_out):
@@ -52,9 +48,7 @@ def getCar() -> string[64]:
     return self.car
     """
 
-    stdin = io.StringIO(
-        "self.car\n"
-    )
+    stdin = io.StringIO("self.car\n")
     stdout = io.StringIO()
 
     c = get_contract(code, stdin=stdin, stdout=stdout)

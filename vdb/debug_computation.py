@@ -1,10 +1,5 @@
-from eth.vm.forks.byzantium.computation import (
-    ByzantiumComputation,
-)
-from eth.exceptions import (
-    Halt,
-    VMError
-)
+from eth.vm.forks.byzantium.computation import ByzantiumComputation
+from eth.exceptions import Halt, VMError
 from vdb.vdb import VyperDebugCmd
 from vyper.exceptions import ParserException
 
@@ -39,7 +34,7 @@ class DebugComputation(ByzantiumComputation):
             source_code=self.source_code,
             source_map=self.source_map,
             stdin=self.stdin,
-            stdout=self.stdout
+            stdout=self.stdout,
         )
         res.cmdloop()
         self.step_mode = res.step_mode
@@ -47,7 +42,7 @@ class DebugComputation(ByzantiumComputation):
 
     @classmethod
     def get_pos(cls, pc):
-        pc_pos_map = cls.source_map['line_number_map']['pc_pos_map']
+        pc_pos_map = cls.source_map["line_number_map"]["pc_pos_map"]
         if pc in pc_pos_map:
             return pc_pos_map[pc]
 
@@ -62,10 +57,10 @@ class DebugComputation(ByzantiumComputation):
     def is_breakpoint(cls, pc, continue_line_nos):
         line_no = cls.get_line_no(pc)
         # PC breakpoint.
-        if pc in cls.source_map['line_number_map'].get('pc_breakpoints', {}):
+        if pc in cls.source_map["line_number_map"].get("pc_breakpoints", {}):
             return True, line_no
         # Line no breakpoint.
-        breakpoint_lines = set(cls.source_map['line_number_map']['breakpoints'])
+        breakpoint_lines = set(cls.source_map["line_number_map"]["breakpoints"])
         if line_no is not None:
             if line_no in continue_line_nos:  # already been here, skip.
                 return False, line_no
@@ -89,15 +84,14 @@ class DebugComputation(ByzantiumComputation):
                 pc_to_execute = max(0, computation.code.pc - 1)
                 if cls.trace:
                     print(
-                        "NEXT OPCODE: 0x%x (%s) | pc: %s..%s" %
-                        (opcode,
-                        opcode_fn.mnemonic,
-                        cls.pc,
-                        pc_to_execute)
+                        "NEXT OPCODE: 0x%x (%s) | pc: %s..%s"
+                        % (opcode, opcode_fn.mnemonic, cls.pc, pc_to_execute)
                     )
                 cls.pc = pc_to_execute
 
-                is_breakpoint, line_no = cls.is_breakpoint(pc_to_execute, continue_line_nos)
+                is_breakpoint, line_no = cls.is_breakpoint(
+                    pc_to_execute, continue_line_nos
+                )
 
                 if (is_breakpoint or cls.step_mode) and cls.enable_debug:
                     cls.run_debugger(computation, line_no)
@@ -111,9 +105,7 @@ class DebugComputation(ByzantiumComputation):
                     msg = "" if len(msg) == 0 else msg
 
                     raise DebugVMError(
-                        message=msg,
-                        item=pos,
-                        source_code=cls.source_code
+                        message=msg, item=pos, source_code=cls.source_code
                     ) from e
                 except Halt:
                     break

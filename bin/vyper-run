@@ -1,25 +1,29 @@
 #!/usr/bin/env python3
 import argparse
-import sys
+import ast
 import os
-import vyper
+import re
+import sys
 from collections import Counter
+from decimal import Decimal
 from pprint import pprint
-from vyper import compile_code
 
-from vdb.source_map import (
-    produce_source_map
+import vyper
+from vyper import compile_code
+from web3 import (
+    Web3,
 )
+from web3.providers.eth_tester import (
+    EthereumTesterProvider,
+)
+
+import vdb.debug_computation
 from vdb.eth_tester_debug_backend import (
     PyEVMDebugBackend,
     set_debug_info
 )
-import vdb.debug_computation
-from web3.providers.eth_tester import (
-    EthereumTesterProvider,
-)
-from web3 import (
-    Web3,
+from vdb.source_map import (
+    produce_source_map
 )
 
 sys.tracebacklimit = 0
@@ -29,8 +33,11 @@ if tb_limit:
 
 aparser = argparse.ArgumentParser(description='Vyper {0} quick CLI runner'.format(vyper.__version__))
 aparser.add_argument('input_file', help='Vyper sourcecode to run')
-aparser.add_argument('call_list', help='call list, without parameters: func, with parameters func(1, 2, 3). Semicolon separated')
+aparser.add_argument('call_list',
+                     help='call list, without parameters: func, with parameters func(1, 2, 3). Semicolon separated')
+
 aparser.add_argument('--trace', action='store_true', help='very verbose logging')
+
 aparser.add_argument('-i', help='init args, comma separated', default=None, dest='init_args')
 
 args = aparser.parse_args()
@@ -38,11 +45,31 @@ args = aparser.parse_args()
 
 def cast_types(args, abi_signature):
     newargs = args.copy()
+
+    def recursive_map(it):
+        #print(type(it))
+        if type(it) is float or type(it) is int or type(it) is str:
+            return Decimal(str(it))
+        else:
+            return list(map(lambda x: recursive_map(x), it))
+
     for idx, abi_arg in enumerate(abi_signature['inputs']):
         if abi_arg['type'] in ('int128', 'uint256'):
             newargs[idx] = int(args[idx])
-        elif abi_arg['type'].startswith('bytes'):
+        elif abi_arg['type'].startswith('bytes'):  ##actually in vyper possible bytes32[32][32]
             newargs[idx] = args[idx].encode()
+        elif abi_arg['type'] == 'bool':
+            if args[idx] in ['True', 'true', '1', 1]:
+                newargs[idx] = True
+            elif args[idx] in ['False', 'false', '0', 0]:
+                newargs[idx] = False
+        elif abi_arg['type'] == 'fixed168x10':
+            newargs[idx] = Decimal(args[idx])
+        elif re.fullmatch('\w+(\[\d+\])+', str(abi_arg['type'])) is not None:
+            if not abi_arg['type'].startswith('fixed168x10'):
+                newargs[idx] = ast.literal_eval(args[idx].strip("\""))
+            else:
+                newargs[idx] = recursive_map(ast.literal_eval(args[idx].strip("\"")))
     return newargs
 
 
@@ -69,7 +96,7 @@ def get_contract(w3, source_code, *args, **kwargs):
 
     value = kwargs.pop('value', 0)
     value_in_eth = kwargs.pop('value_in_eth', 0)
-    value = value_in_eth * 10**18 if value_in_eth else value  # Handle deploying with an eth value.
+    value = value_in_eth * 10 ** 18 if value_in_eth else value  # Handle deploying with an eth value.
     gasPrice = kwargs.pop('gasPrice', 0)
     deploy_transaction = {
         'from': w3.eth.accounts[0],
@@ -100,13 +127,15 @@ def get_func_abi(abi, func_name, args):
             return 'int128'
         except ValueError:
             return 'bytes'
+
     # handle when func doesnot have a name --- special for __init__ and __default__
-    func_name_count_map = dict(Counter([a['name'] for a in abi if a['type'] != 'constructor' and a['type'] != 'fallback' ]))
+    func_name_count_map = dict(
+        Counter([a['name'] for a in abi if a['type'] != 'constructor' and a['type'] != 'fallback']))
     for candidate_func_abi in abi:
         if candidate_func_abi["type"] == "function":
             # try func name first.
             if candidate_func_abi["name"] == func_name and \
-               func_name_count_map[candidate_func_abi['name']] == 1:
+                    func_name_count_map[candidate_func_abi['name']] == 1:
                 if len(args) != len(candidate_func_abi['inputs']):
                     print('Incorrect arguments for {}'.format(func_name))
                     return
@@ -145,9 +174,10 @@ if __name__ == '__main__':
             if '(' in signature:
                 start_pos = signature.find('(')
                 name = signature[:start_pos].strip()
-                args = signature[start_pos + 1:-1].split(',')
-                args = [arg.strip() for arg in args]
-                args = [arg for arg in args if len(arg) > 0]
+                args = re.findall("\"[^\"]*\"|[^,]+", signature[start_pos + 1:-1])
+            #  args = signature[start_pos + 1:-1].split(',')
+            #  args = [arg.strip() for arg in args]
+            #  args = [arg for arg in args if len(arg) > 0]
 
             calls.append((name, args))
 
@@ -155,7 +185,8 @@ if __name__ == '__main__':
 
         # Format init args.
         if init_args:
-            init_abi = next(filter(lambda func: func["type"] == 'constructor', abi)) #since __init__ doesn't have a name
+            init_abi = next(
+                filter(lambda func: func["type"] == 'constructor', abi))  # since __init__ doesn't have a name
             init_args = cast_types(init_args, init_abi)
 
         # Compile contract to chain.
@@ -180,7 +211,8 @@ if __name__ == '__main__':
             res = getattr(contract.functions, func_name)(*cast_args).call({'gas': func_abi.get('gas', 0) + 50000})
             setattr(vdb.debug_computation.DebugComputation, 'enable_debug', False)
 
-            tx_hash = getattr(contract.functions, func_name)(*cast_args).transact({'gas': func_abi.get('gas', 0) + 50000})
+            tx_hash = getattr(contract.functions, func_name)(*cast_args).transact(
+                {'gas': func_abi.get('gas', 0) + 50000})
 
             print('- Returns:')
             pprint('{}'.format(res))
